@@ -1,28 +1,65 @@
+import json
 import subprocess
-import time
 
-def perform_controller_reset():
-    # Perform a controller reset using nvme-cli (requires root privileges)
-    print("Simulating NVMe controller reset...")
-    subprocess.run(['sudo', 'nvme', 'reset', '/dev/nvme0'], check=True)
+def run_fio_test(test_name, rw_type, filename):
+    """Runs a FIO test and returns the IOPS for the given read/write operation."""
+    command = [
+        'fio',
+        f'--name={test_name}',
+        '--ioengine=libaio',
+        f'--rw={rw_type}',
+        '--bs=4k',
+        '--numjobs=4',
+        '--runtime=60',  # Run for 60 seconds
+        '--iodepth=32',
+        '--direct=1',
+        f'--filename={filename}',
+        '--output-format=json'
+    ]
 
-def test_controller_reset_recovery():
-    # Run an I/O test (for example, fio) to simulate normal operation
-    fio_process = subprocess.Popen(['fio', '--name=test', '--rw=randwrite', '--ioengine=libaio', '--bs=4k', '--numjobs=4', '--iodepth=32', '--runtime=60', '--direct=1', '--filename=/dev/nvme0n1'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    print(f"Running {test_name} on {filename}...")
+
+    try:
+        # Run the Fio command and capture the output
+        result = subprocess.run(command, capture_output=True, text=True, check=True)
+
+        # Parse the output as JSON
+        output = json.loads(result.stdout)
+
+        # Extract IOPS and handle missing data gracefully
+        iops = 0
+        if rw_type in ['randread', 'read']:
+            iops = output['jobs'][0].get('read', {}).get('iops', 0)
+        elif rw_type in ['randwrite', 'write']:
+            iops = output['jobs'][0].get('write', {}).get('iops', 0)
+
+        return iops
+
+    except subprocess.CalledProcessError as e:
+        print(f"Error running FIO command: {e}")
+        return 0
+    except json.JSONDecodeError:
+        print("Error decoding FIO output. The output may not be in valid JSON format.")
+        return 0
+    except KeyError as e:
+        print(f"Missing expected key in FIO output: {e}")
+        return 0
+
+def main():
+    filename = '/dev/nvme0n1'  # Change this to your NVMe device path
     
-    # Simulate a controller reset while fio is running
-    perform_controller_reset()
+    # Run tests and handle potential errors
+    rand_read_iops = run_fio_test("random-read-test", "randread", filename)
+    rand_write_iops = run_fio_test("random-write-test", "randwrite", filename)
+    seq_read_iops = run_fio_test("sequential-read-test", "read", filename)
+    seq_write_iops = run_fio_test("sequential-write-test", "write", filename)
 
-    # Allow some time for the reset and reinitialization to complete
-    time.sleep(5)
+    # Print results with a check for zero values
+    print("\nResults:")
+    print(f"Random Read IOPS: {rand_read_iops if rand_read_iops else 'Error or No Data'}")
+    print(f"Random Write IOPS: {rand_write_iops if rand_write_iops else 'Error or No Data'}")
+    print(f"Sequential Read IOPS: {seq_read_iops if seq_read_iops else 'Error or No Data'}")
+    print(f"Sequential Write IOPS: {seq_write_iops if seq_write_iops else 'Error or No Data'}")
 
-    # Check if fio encounters any errors after the reset
-    stdout, stderr = fio_process.communicate()
-    if "I/O error" in stderr.decode():
-        print("I/O error detected after reset. Testing recovery.")
-        # Check if the device is back online
-        recovery_test = subprocess.run(['lsblk', '/dev/nvme0n1'], capture_output=True, text=True)
-        assert recovery_test.returncode == 0, "Device not accessible after reset"
-        print("Device successfully reinitialized.")
-    else:
-        print("I/O operations were successful after controller reset.")
+if __name__ == "__main__":
+    main()
