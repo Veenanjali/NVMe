@@ -3,7 +3,7 @@ import subprocess
 def list_nvme_devices():
     try:
         # List NVMe devices
-        result = subprocess.run(['nvme', 'list'], capture_output=True, text=True, check=True)
+        result = subprocess.run(['sudo','nvme', 'list'], capture_output=True, text=True, check=True)
         print("NVMe Devices:\n")
         print(result.stdout)
         return True

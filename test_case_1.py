@@ -1,13 +1,9 @@
 import subprocess
 
-
 def check_nvme_initialization():
     try:
-        dmesg_output = subprocess.check_output(
-            ["sudo", "-S", "dmesg"],
-            input="debian" + "\n",  # Provide the password
-            text=True
-        )
+        # Run 'dmesg' with sudo, no password required due to sudoers configuration
+        dmesg_output = subprocess.check_output(["sudo", "dmesg"], text=True)
 
         # Check for NVMe initialization messages
         nvme_init_msgs = [line for line in dmesg_output.splitlines() if 'nvme' in line]
@@ -22,3 +18,4 @@ def check_nvme_initialization():
         print(f"Error executing command: {e}")
 
 check_nvme_initialization()
+

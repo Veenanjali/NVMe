@@ -14,9 +14,9 @@ def run_fio_test(test_name, rw_type, filename):
         '--direct=1',
         f'--filename={filename}',
         '--output-format=json',
-        '--write_bw_log=log_write',  # Log write bandwidth
-        '--write_iops_log=log_iops',  # Log IOPS
-        '--write_lat_log=log_lat'     # Log latency
+        #'--write_bw_log=log_write',  # Log write bandwidth
+        #'--write_iops_log=log_iops',  # Log IOPS
+        #'--write_lat_log=log_lat'     # Log latency
     ]
     
     print(f"Running {test_name} on NVMe device...")
